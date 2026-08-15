@@ -3,9 +3,6 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
-
-        // در صورت نیاز به مخزن ایران‌سرور
-        maven("https://maven.iranserver.com/maven2")
     }
 }
 
@@ -14,11 +11,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-
-        // در صورت نیاز به مخزن ایران‌سرور
-        maven("https://maven.iranserver.com/maven2")
     }
 }
 
-rootProject.name = "khoshhesab"
+rootProject.name = "KhoshHesab"
 include(":app")
