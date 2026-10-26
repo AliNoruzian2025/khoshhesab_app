@@ -1,5 +1,9 @@
 package ir.khoshhesab.app.ui
 
+import android.content.Context
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,8 +31,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Image
 import ir.khoshhesab.app.AppViewModel
 import ir.khoshhesab.app.BuildConfig
+import ir.khoshhesab.app.R
 import ir.khoshhesab.app.data.ChatMessage
 import ir.khoshhesab.app.data.Group
 import ir.khoshhesab.app.data.SendChatMessageRequest
@@ -46,6 +54,9 @@ private val stickerPack = listOf(
 
 @Composable
 fun ChatScreen(vm: AppViewModel, groupId: Long, onBack: () -> Unit) {
+    SystemBarAppearance(darkBackground = true)
+    val context = LocalContext.current
+    val chatPrefs = remember { context.getSharedPreferences("chat_preferences", Context.MODE_PRIVATE) }
     var group by remember { mutableStateOf<Group?>(null) }
     var messages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var text by remember { mutableStateOf("") }
@@ -55,6 +66,16 @@ fun ChatScreen(vm: AppViewModel, groupId: Long, onBack: () -> Unit) {
     var editing by remember { mutableStateOf<ChatMessage?>(null) }
     var deleting by remember { mutableStateOf<ChatMessage?>(null) }
     var groupRefresh by remember { mutableIntStateOf(0) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var customName by remember(groupId) { mutableStateOf(chatPrefs.getString("name_$groupId", "").orEmpty()) }
+    var backgroundUri by remember(groupId) { mutableStateOf(chatPrefs.getString("background_$groupId", null)) }
+    val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            backgroundUri = it.toString()
+            chatPrefs.edit().putString("background_$groupId", it.toString()).apply()
+        }
+    }
     val listState = rememberLazyListState()
 
     LaunchedEffect(groupId, groupRefresh) {
@@ -78,12 +99,14 @@ fun ChatScreen(vm: AppViewModel, groupId: Long, onBack: () -> Unit) {
                     Brush.horizontalGradient(listOf(Color(0xFF164FC5), Color(0xFF2873EF)))
                 )
             ) {
-                ChatHeader(group?.name ?: "گفت‌وگوی گروه", group?.members.orEmpty(), onBack)
+                ChatHeader(customName.ifBlank { group?.name ?: "گفت‌وگوی گروه" }, group?.members.orEmpty(), onBack) {
+                    settingsOpen = true
+                }
             }
         },
         bottomBar = {
             Column(
-                Modifier.fillMaxWidth().imePadding()
+                Modifier.fillMaxWidth().imePadding().navigationBarsPadding()
                     .background(MaterialTheme.colorScheme.surface)
             ) {
                 (editing ?: replyTo)?.let { target ->
@@ -182,11 +205,24 @@ fun ChatScreen(vm: AppViewModel, groupId: Long, onBack: () -> Unit) {
             }
         }
     ) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().background(
-                Brush.verticalGradient(listOf(Color(0xFFEAF1FF), Color(0xFFF7F9FD)))
-            )
-        ) {
+        Box(Modifier.padding(padding).fillMaxSize()) {
+            if (backgroundUri != null) {
+                AsyncImage(
+                    model = backgroundUri,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Image(
+                    painter = painterResource(R.drawable.home_background_duck),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Box(Modifier.fillMaxSize().background(Color(0x99EAF1FF)))
+            Column(Modifier.fillMaxSize()) {
             group?.let {
                 DeletionRequestBanner(vm, it, onChanged = { groupRefresh++ }, onDeleted = onBack)
             }
@@ -221,7 +257,44 @@ fun ChatScreen(vm: AppViewModel, groupId: Long, onBack: () -> Unit) {
                 }
             }
             }
+            }
         }
+    }
+
+    if (settingsOpen) {
+        AlertDialog(
+            onDismissRequest = { settingsOpen = false },
+            title = { Text("ظاهر این گفت‌وگو") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AppField(customName, { customName = it.take(100) }, "نام دلخواه گفتگو")
+                    OutlinedButton(
+                        onClick = { backgroundPicker.launch(arrayOf("image/*")) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Wallpaper, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("انتخاب تصویر پس‌زمینه")
+                    }
+                    TextButton(
+                        onClick = {
+                            backgroundUri = null
+                            chatPrefs.edit().remove("background_$groupId").apply()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("بازگرداندن پس‌زمینه پیش‌فرض") }
+                    Text("این تغییرات فقط برای شما نمایش داده می‌شود.", style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (customName.isBlank()) chatPrefs.edit().remove("name_$groupId").apply()
+                    else chatPrefs.edit().putString("name_$groupId", customName.trim()).apply()
+                    settingsOpen = false
+                }) { Text("ذخیره") }
+            },
+            dismissButton = { TextButton(onClick = { settingsOpen = false }) { Text("انصراف") } }
+        )
     }
 
     actionMessage?.let { message ->
@@ -293,26 +366,45 @@ private fun SystemMessage(text: String) {
 }
 
 @Composable
-private fun ChatHeader(name: String, members: List<User>, onBack: () -> Unit) {
+private fun ChatHeader(name: String, members: List<User>, onBack: () -> Unit, onSettings: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 7.dp),
+        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onBack) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.background(Color.White.copy(alpha = .14f), CircleShape)
+        ) {
             Icon(Icons.Default.ArrowForward, "بازگشت", tint = Color.White)
         }
-        Column(Modifier.weight(1f)) {
-            Text(name, color = Color.White, fontWeight = FontWeight.Black, fontSize = 19.sp)
-            Text("${members.size} عضو", color = Color.White.copy(alpha = .75f), fontSize = 12.sp)
+        Spacer(Modifier.width(9.dp))
+        Box(
+            Modifier.size(46.dp).clip(CircleShape).background(Color.White.copy(alpha = .22f)),
+            contentAlignment = Alignment.Center
+        ) {
+            val member = members.firstOrNull()
+            if (!member?.avatar.isNullOrBlank()) {
+                AsyncImage(
+                    model = mediaUrl(member!!.avatar!!),
+                    contentDescription = name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(Icons.Default.Groups, null, tint = Color.White, modifier = Modifier.size(27.dp))
+            }
         }
-        Icon(Icons.Default.Lock, "گفت‌وگوی خصوصی گروه", tint = Color.White.copy(alpha = .85f))
-    }
-    LazyRow(
-        Modifier.fillMaxWidth().padding(bottom = 10.dp),
-        contentPadding = PaddingValues(horizontal = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(members, key = { it.id }) { member -> MemberAvatar(member) }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(name, color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${members.size} عضو • گفت‌وگوی گروهی", color = Color.White.copy(alpha = .82f), fontSize = 12.sp)
+        }
+        IconButton(
+            onClick = onSettings,
+            modifier = Modifier.background(Color.White.copy(alpha = .14f), CircleShape)
+        ) {
+            Icon(Icons.Default.MoreVert, "تنظیمات گفتگو", tint = Color.White)
+        }
     }
 }
 
@@ -429,7 +521,7 @@ private fun MessageBubble(message: ChatMessage, mine: Boolean, onClick: () -> Un
                     Row(Modifier.align(Alignment.End)) {
                         if (message.edited_at != null) Text("ویرایش‌شده • ", fontSize = 10.sp)
                         Text(
-                            it.take(16).takeLast(5),
+                            it.toTehranTimeText(),
                             color = if (mine) Color.White.copy(alpha = .7f) else Color(0xFF7B8496),
                             fontSize = 10.sp
                         )

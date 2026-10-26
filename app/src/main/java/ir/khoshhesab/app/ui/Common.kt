@@ -1,11 +1,14 @@
 package ir.khoshhesab.app.ui
 
+import android.app.Activity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -16,16 +19,42 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.compose.foundation.shape.CircleShape
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+
+@Composable
+fun SystemBarAppearance(darkBackground: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(view, darkBackground) {
+        val window = (view.context as? Activity)?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        val previousStatus = controller?.isAppearanceLightStatusBars
+        val previousNavigation = controller?.isAppearanceLightNavigationBars
+        controller?.isAppearanceLightStatusBars = !darkBackground
+        controller?.isAppearanceLightNavigationBars = !darkBackground
+        onDispose {
+            if (previousStatus != null) controller?.isAppearanceLightStatusBars = previousStatus
+            if (previousNavigation != null) controller?.isAppearanceLightNavigationBars = previousNavigation
+        }
+    }
+}
 
 @Composable
 fun PageHeader(title: String, onBack: (() -> Unit)? = null) {
     Surface(
         color = MaterialTheme.colorScheme.primaryContainer,
         shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
-        tonalElevation = 2.dp
+        tonalElevation = 6.dp,
+        shadowElevation = 5.dp
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
@@ -36,7 +65,10 @@ fun PageHeader(title: String, onBack: (() -> Unit)? = null) {
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
             if (onBack != null) {
-                IconButton(onClick = onBack) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = .9f), CircleShape)
+                ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "بازگشت",
@@ -89,6 +121,17 @@ fun String.normalizeNumberDigits(): String = map { char ->
 }.joinToString("")
 
 fun Long.toTomanText(): String = "%,d تومان".format(this)
+
+fun String.toTehranTimeText(): String {
+    val tehran = ZoneId.of("Asia/Tehran")
+    val zoned = runCatching { Instant.parse(this).atZone(tehran) }.getOrNull()
+        ?: runCatching {
+            LocalDateTime.parse(take(19), DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                .atZone(ZoneOffset.UTC)
+                .withZoneSameInstant(tehran)
+        }.getOrNull()
+    return zoned?.format(DateTimeFormatter.ofPattern("HH:mm")) ?: take(16).takeLast(5)
+}
 
 object ThousandsSeparatorTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {

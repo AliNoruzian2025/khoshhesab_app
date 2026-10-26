@@ -159,12 +159,16 @@ fun KhoshHesabApp(vm: AppViewModel) {
                         createGroup = { nav.navigate("create-group") },
                         notifications = { nav.navigate("notifications") },
                         chats = { nav.navigate("chats") },
+                        personalFinance = { nav.navigate("personal-finance") },
                         profile = { nav.navigate("profile") },
                         logout = {
                             vm.session.clear()
                             nav.navigate("welcome") { popUpTo(0) }
                         }
                     )
+                }
+                composable("personal-finance") {
+                    PersonalFinanceScreen(vm) { nav.popBackStack() }
                 }
                 composable("create-group") {
                     CreateGroupScreen(vm, { nav.popBackStack() }) { id ->

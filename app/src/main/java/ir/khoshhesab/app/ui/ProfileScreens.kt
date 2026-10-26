@@ -1,12 +1,17 @@
 package ir.khoshhesab.app.ui
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CameraAlt
@@ -21,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import ir.khoshhesab.app.BuildConfig
+import ir.khoshhesab.app.R
 import ir.khoshhesab.app.AppViewModel
 import ir.khoshhesab.app.data.User
 import kotlinx.coroutines.delay
@@ -35,6 +41,8 @@ fun ProfileScreen(vm: AppViewModel, onBack: () -> Unit, changePhone: () -> Unit)
     var email by remember { mutableStateOf("") }
     var localAvatar by remember { mutableStateOf<Uri?>(null) }
     val context = LocalContext.current
+    val appearancePrefs = remember { context.getSharedPreferences("appearance_preferences", Context.MODE_PRIVATE) }
+    var homeBackground by remember { mutableStateOf(appearancePrefs.getString("home_background", null)) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             val bytes = context.contentResolver.openInputStream(it)?.use { stream -> stream.readBytes() }
@@ -53,6 +61,16 @@ fun ProfileScreen(vm: AppViewModel, onBack: () -> Unit, changePhone: () -> Unit)
             }
         }
     }
+    val backgroundPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            homeBackground = it.toString()
+            appearancePrefs.edit().putString("home_background", it.toString()).apply()
+            vm.showSuccess("پس‌زمینه صفحه اصلی تغییر کرد")
+        }
+    }
     LaunchedEffect(Unit) {
         vm.request({ vm.api.profile() }) {
             user = it
@@ -61,7 +79,7 @@ fun ProfileScreen(vm: AppViewModel, onBack: () -> Unit, changePhone: () -> Unit)
         }
     }
     Column(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -107,6 +125,39 @@ fun ProfileScreen(vm: AppViewModel, onBack: () -> Unit, changePhone: () -> Unit)
             label = { Text("شماره موبایل") },
             modifier = Modifier.fillMaxWidth()
         )
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
+        ) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("پس‌زمینه صفحه اصلی", style = MaterialTheme.typography.titleMedium)
+                AsyncImage(
+                    model = homeBackground ?: R.drawable.home_background_vault_duck,
+                    contentDescription = "پیش‌نمایش پس‌زمینه",
+                    modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                OutlinedButton(
+                    onClick = { backgroundPicker.launch(arrayOf("image/*")) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.CameraAlt, null)
+                    Spacer(Modifier.width(7.dp))
+                    Text("انتخاب تصویر از گالری")
+                }
+                if (homeBackground != null) {
+                    TextButton(
+                        onClick = {
+                            homeBackground = null
+                            appearancePrefs.edit().remove("home_background").apply()
+                            vm.showSuccess("پس‌زمینه پیش‌فرض فعال شد")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("حذف تصویر و بازگشت به پیش‌فرض") }
+                }
+            }
+        }
         PrimaryButton("ذخیره تغییرات", {
             vm.request({
                 vm.api.updateProfile(mapOf("name" to name, "email" to email.ifBlank { null }))

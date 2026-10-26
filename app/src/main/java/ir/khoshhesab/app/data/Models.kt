@@ -64,6 +64,7 @@ data class Group(
     val end_date: String? = null,
     val is_active: Boolean = true,
     val unread_count: Int = 0,
+    val latest_message: ChatMessage? = null,
     val deletion_request: GroupDeletionRequest? = null,
     val expense_entry_closed: Boolean = false,
     val settlement_due: Boolean = false,
@@ -130,12 +131,79 @@ data class Settlement(
     val debtor_id: Long,
     val creditor_id: Long,
     val amount: Long,
+    val payment_method: String = "other",
+    val debtor_personal_account_id: Long? = null,
+    val creditor_personal_account_id: Long? = null,
     val receipt_image: String? = null,
     val status: String,
     val rejection_reason: String? = null,
     val settled_at: String? = null,
     val debtor: User? = null,
     val creditor: User? = null
+)
+
+data class PersonalAccount(
+    val id: Long = 0,
+    val name: String = "",
+    val type: String = "card",
+    val opening_balance: Long = 0,
+    val balance: Long = 0,
+    val color: String? = null,
+    val note: String? = null,
+    val is_archived: Boolean = false
+)
+
+data class PersonalTransaction(
+    val id: Long = 0,
+    val account_id: Long = 0,
+    val destination_account_id: Long? = null,
+    val type: String = "expense",
+    val amount: Long = 0,
+    val category: String? = null,
+    val title: String = "",
+    val note: String? = null,
+    val transaction_date: String = "",
+    val reference_type: String? = null,
+    val account: PersonalAccount? = null,
+    val destination_account: PersonalAccount? = null
+)
+
+data class SavingsGoal(
+    val id: Long = 0,
+    val title: String = "",
+    val target_amount: Long = 0,
+    val saved_amount: Long = 0,
+    val target_date: String? = null,
+    val color: String? = null,
+    val is_completed: Boolean = false
+)
+
+data class FinanceTrend(val month: String, val income: Long = 0, val expense: Long = 0)
+data class FinanceDailyTrend(val date: String, val income: Long = 0, val expense: Long = 0)
+data class FinanceCategoryTotal(val category: String, val amount: Long = 0)
+
+data class PersonalFinanceDashboard(
+    val accounts: List<PersonalAccount> = emptyList(),
+    val total_balance: Long = 0,
+    val shared_receivable: Long = 0,
+    val shared_debt: Long = 0,
+    val net_worth: Long = 0,
+    val spendable_balance: Long = 0,
+    val month_income: Long = 0,
+    val month_expense: Long = 0,
+    val warning: String? = null,
+    val trend: List<FinanceTrend> = emptyList(),
+    val daily_trend: List<FinanceDailyTrend> = emptyList(),
+    val month_daily_trend: List<FinanceDailyTrend> = emptyList(),
+    val year_trend: List<FinanceTrend> = emptyList(),
+    val category_expenses: List<FinanceCategoryTotal> = emptyList(),
+    val recent_transactions: List<PersonalTransaction> = emptyList(),
+    val goals: List<SavingsGoal> = emptyList()
+)
+
+data class FinanceCategories(
+    val income: List<String> = emptyList(),
+    val expense: List<String> = emptyList()
 )
 
 data class ChatMessage(
@@ -175,5 +243,6 @@ data class NotificationData(
     val expense_id: Long? = null,
     val settlement_id: Long? = null,
     val deletion_request_id: Long? = null,
-    val reason: String? = null
+    val reason: String? = null,
+    val savings_goal_id: Long? = null
 )

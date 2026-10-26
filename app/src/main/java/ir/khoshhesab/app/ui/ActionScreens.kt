@@ -43,7 +43,10 @@ fun ExpenseFormScreen(vm: AppViewModel, groupId: Long, onDone: () -> Unit) {
     val memberListState = rememberLazyListState()
 
     Column(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .navigationBarsPadding()
+            .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         PageHeader("ثبت هزینه", onDone)
@@ -78,7 +81,11 @@ fun ExpenseFormScreen(vm: AppViewModel, groupId: Long, onDone: () -> Unit) {
             }) { Text(if (selected.size == members.size) "لغو همه" else "انتخاب همه") }
         }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            ElevatedCard(Modifier.fillMaxSize()) {
+            ElevatedCard(
+                Modifier.fillMaxSize(),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 7.dp)
+            ) {
                 LazyColumn(
                     state = memberListState,
                     modifier = Modifier.fillMaxSize(),
@@ -156,8 +163,12 @@ fun SettlementFormScreen(vm: AppViewModel, groupId: Long, onDone: () -> Unit) {
     var creditorId by remember { mutableLongStateOf(0) }
     var amount by remember { mutableStateOf("") }
     var receipt by remember { mutableStateOf("") }
+    var accounts by remember { mutableStateOf<List<ir.khoshhesab.app.data.PersonalAccount>>(emptyList()) }
+    var accountId by remember { mutableLongStateOf(0) }
+    var paymentMethod by remember { mutableStateOf("other") }
     LaunchedEffect(groupId) {
         vm.request({ vm.api.group(groupId) }) { details = it }
+        vm.request({ vm.api.personalAccounts() }, silent = true) { accounts = it }
     }
     val creditors = details?.balances.orEmpty().filter { it.balance > 0 }
     Column(
@@ -175,6 +186,17 @@ fun SettlementFormScreen(vm: AppViewModel, groupId: Long, onDone: () -> Unit) {
             visualTransformation = ThousandsSeparatorTransformation
         )
         ReceiptPicker(vm, receipt.ifBlank { null }, { receipt = it })
+        ChoiceDropdown(
+            "روش پرداخت", paymentMethod,
+            listOf(
+                "cash" to "نقدی", "bank_transfer" to "انتقال بانکی",
+                "card_to_card" to "کارت‌به‌کارت", "personal_account" to "از حساب شخصی", "other" to "سایر"
+            )
+        ) { paymentMethod = it }
+        if (accounts.isNotEmpty()) {
+            AccountDropdown("کسر از حساب شخصی (اختیاری)", accounts, accountId) { accountId = it }
+            Text("مبلغ فقط پس از تأیید طلبکار از موجودی این حساب کم می‌شود.", style = MaterialTheme.typography.bodySmall)
+        } else Text("برای اتصال این پرداخت به مالی شخصی، ابتدا یک حساب مالی بسازید.", style = MaterialTheme.typography.bodySmall)
         Text("پس از ارسال، طلبکار باید پرداخت را تأیید کند.")
         PrimaryButton("ارسال درخواست", {
             vm.request({
@@ -182,7 +204,9 @@ fun SettlementFormScreen(vm: AppViewModel, groupId: Long, onDone: () -> Unit) {
                     debtor_id = vm.session.userId,
                     creditor_id = creditorId,
                     amount = amount.toLongOrNull() ?: 0,
-                    receipt_image = receipt.ifBlank { null }
+                    receipt_image = receipt.ifBlank { null },
+                    payment_method = paymentMethod,
+                    personal_account_id = accountId.takeIf { it > 0 }
                 ))
             }) {
                 vm.showSuccess("درخواست تسویه ارسال شد")

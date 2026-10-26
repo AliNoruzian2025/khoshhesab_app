@@ -40,6 +40,8 @@ fun GroupScreen(
     var selectedExpense by remember { mutableStateOf<Expense?>(null) }
     var selectedSettlement by remember { mutableStateOf<Settlement?>(null) }
     var rejectSettlement by remember { mutableStateOf<Settlement?>(null) }
+    var approveSettlement by remember { mutableStateOf<Settlement?>(null) }
+    var personalAccounts by remember { mutableStateOf<List<PersonalAccount>>(emptyList()) }
     var editingGroup by remember { mutableStateOf<Group?>(null) }
     var deletingGroup by remember { mutableStateOf<Group?>(null) }
     var renewingGroup by remember { mutableStateOf<Group?>(null) }
@@ -48,6 +50,7 @@ fun GroupScreen(
         vm.request({ vm.api.group(groupId) }) { details = it }
         vm.request({ vm.api.expenses(groupId) }) { expenses = it }
         vm.request({ vm.api.settlements(groupId) }) { settlements = it }
+        vm.request({ vm.api.personalAccounts() }, silent = true) { personalAccounts = it }
     }
     val group = details?.group
 
@@ -87,6 +90,8 @@ fun GroupScreen(
                 val container = if (isDang) Color(0xFFE2ECFF) else Color(0xFFFFE9D5)
                 ElevatedCard(
                     Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                    elevation = CardDefaults.elevatedCardElevation(defaultElevation = 7.dp),
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = container,
                         contentColor = Color(0xFF111827)
@@ -198,12 +203,7 @@ fun GroupScreen(
                 2 -> SettlementList(
                     vm, settlements,
                     showDetails = { selectedSettlement = it },
-                    approve = { item ->
-                        vm.request({ vm.api.approveSettlement(item.id) }) {
-                            vm.showSuccess(it.message)
-                            refresh++
-                        }
-                    },
+                    approve = { approveSettlement = it },
                     reject = { rejectSettlement = it }
                 )
                 3 -> MemberList(group)
@@ -220,6 +220,19 @@ fun GroupScreen(
                 vm.request({ vm.api.rejectSettlement(item.id, mapOf("rejection_reason" to reason)) }) {
                     vm.showSuccess(it.message)
                     rejectSettlement = null
+                    refresh++
+                }
+            }
+        )
+    }
+    approveSettlement?.let { item ->
+        ApproveSettlementDialog(
+            accounts = personalAccounts,
+            onDismiss = { approveSettlement = null },
+            onConfirm = { accountId ->
+                vm.request({ vm.api.approveSettlement(item.id, mapOf("personal_account_id" to accountId)) }) {
+                    vm.showSuccess(it.message)
+                    approveSettlement = null
                     refresh++
                 }
             }
@@ -390,10 +403,13 @@ private fun EditGroupDialog(
     val start = runCatching { LocalDate.parse(startDate) }.getOrNull()
     val due = runCatching { LocalDate.parse(dueDate) }.getOrNull()
     val reminder = runCatching { LocalDate.parse(reminderDate) }.getOrNull()
+    val dueUnchanged = dueDate == group.due_date?.take(10).orEmpty()
+    val reminderUnchanged = reminderDate == group.reminder_date?.take(10).orEmpty()
     val minimumDue = listOfNotNull(start, LocalDate.now()).maxOrNull()
     val datesValid = group.type == "dang" || (
-        start != null && due != null && minimumDue != null && !due.isBefore(minimumDue) &&
-            (reminder == null || (!reminder.isBefore(LocalDate.now()) && reminder.isBefore(due)))
+        start != null && due != null && minimumDue != null &&
+            (dueUnchanged || !due.isBefore(minimumDue)) &&
+            (reminder == null || ((reminderUnchanged || !reminder.isBefore(LocalDate.now())) && reminder.isBefore(due)))
         )
 
     AlertDialog(
@@ -440,8 +456,8 @@ private fun EditGroupDialog(
                         Text(
                             when {
                                 due == null -> "انتخاب تاریخ سررسید الزامی است."
-                                minimumDue != null && due.isBefore(minimumDue) -> "خطا: سررسید نمی‌تواند قبل از تاریخ شروع یا تاریخ امروز باشد."
-                                reminder != null && reminder.isBefore(LocalDate.now()) -> "خطا: یادآور نمی‌تواند قبل از تاریخ امروز باشد."
+                                !dueUnchanged && minimumDue != null && due.isBefore(minimumDue) -> "خطا: سررسید نمی‌تواند قبل از تاریخ شروع یا تاریخ امروز باشد."
+                                !reminderUnchanged && reminder != null && reminder.isBefore(LocalDate.now()) -> "خطا: یادآور نمی‌تواند قبل از تاریخ امروز باشد."
                                 reminder != null && !reminder.isBefore(due) -> "خطا: یادآور باید قبل از تاریخ سررسید باشد."
                                 else -> "یادآور اختیاری است و در صورت انتخاب باید قبل از سررسید باشد."
                             },
@@ -543,31 +559,38 @@ private fun JoinRequestsPanel(
 
 @Composable
 private fun BalanceList(items: List<Balance>) = LazyColumn(
-    Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)
+    Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
 ) {
     items(items) { balance ->
-        ListItem(
-            headlineContent = { Text(balance.name ?: "کاربر ${balance.user_id}") },
-            supportingContent = {
-                Text(when (balance.status) {
-                    "creditor" -> "طلبکار"
-                    "debtor" -> "بدهکار"
-                    else -> "تسویه"
-                })
-            },
-            trailingContent = {
-                Text(
-                    balance.balance.toTomanText(),
-                    color = when {
-                        balance.balance > 0 -> Color(0xFF07883F)
-                        balance.balance < 0 -> Color(0xFFD32F2F)
-                        else -> Color.Gray
-                    },
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        )
-        HorizontalDivider()
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp)
+        ) {
+            ListItem(
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                headlineContent = { Text(balance.name ?: "کاربر ${balance.user_id}", fontWeight = FontWeight.Bold) },
+                supportingContent = {
+                    Text(when (balance.status) {
+                        "creditor" -> "طلبکار"
+                        "debtor" -> "بدهکار"
+                        else -> "تسویه"
+                    })
+                },
+                trailingContent = {
+                    Text(
+                        balance.balance.toTomanText(),
+                        fontSize = 17.sp,
+                        color = when {
+                            balance.balance > 0 -> Color(0xFF07883F)
+                            balance.balance < 0 -> Color(0xFFD32F2F)
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            )
+        }
     }
 }
 
@@ -578,6 +601,8 @@ private fun ExpenseList(expenses: List<Expense>, showDetails: (Expense) -> Unit)
     items(expenses, key = { it.id }) { expense ->
         ElevatedCard(
             Modifier.fillMaxWidth().clickable { showDetails(expense) },
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp),
             colors = CardDefaults.elevatedCardColors(
                 containerColor = Color(0xFFF1F5FF),
                 contentColor = Color(0xFF111827)
@@ -721,6 +746,41 @@ private fun RejectSettlementDialog(onDismiss: () -> Unit, onConfirm: (String) ->
         confirmButton = {
             Button(onClick = { onConfirm(reason.trim()) }, enabled = reason.isNotBlank()) { Text("ثبت رد") }
         },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }
+    )
+}
+
+@Composable
+private fun ApproveSettlementDialog(
+    accounts: List<PersonalAccount>,
+    onDismiss: () -> Unit,
+    onConfirm: (Long?) -> Unit
+) {
+    var selected by remember { mutableLongStateOf(0) }
+    var expanded by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("تأیید دریافت تسویه") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("در صورت انتخاب حساب، مبلغ دریافت‌شده به مالی شخصی شما اضافه می‌شود.")
+                Box {
+                    OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(accounts.firstOrNull { it.id == selected }?.name ?: "بدون ثبت در حساب شخصی")
+                    }
+                    DropdownMenu(expanded, { expanded = false }) {
+                        DropdownMenuItem(text = { Text("بدون ثبت در حساب شخصی") }, onClick = { selected = 0; expanded = false })
+                        accounts.forEach { account ->
+                            DropdownMenuItem(
+                                text = { Text("${account.name} — ${account.balance.toTomanText()}") },
+                                onClick = { selected = account.id; expanded = false }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { Button(onClick = { onConfirm(selected.takeIf { it > 0 }) }) { Text("تأیید دریافت") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("انصراف") } }
     )
 }

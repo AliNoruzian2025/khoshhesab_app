@@ -34,7 +34,43 @@ data class CreateSettlementRequest(
     val debtor_id: Long,
     val creditor_id: Long,
     val amount: Long,
-    val receipt_image: String? = null
+    val receipt_image: String? = null,
+    val payment_method: String = "other",
+    val personal_account_id: Long? = null
+)
+
+data class PersonalAccountRequest(
+    val name: String,
+    val type: String,
+    val opening_balance: Long,
+    val color: String? = null,
+    val note: String? = null
+)
+
+data class PersonalAccountUpdateRequest(
+    val name: String? = null,
+    val type: String? = null,
+    val note: String? = null,
+    val is_archived: Boolean? = null
+)
+
+data class PersonalTransactionRequest(
+    val account_id: Long,
+    val destination_account_id: Long? = null,
+    val type: String,
+    val amount: Long,
+    val category: String? = null,
+    val title: String,
+    val note: String? = null,
+    val transaction_date: String
+)
+
+data class SavingsGoalRequest(
+    val title: String,
+    val target_amount: Long,
+    val saved_amount: Long,
+    val target_date: String? = null,
+    val color: String? = null
 )
 
 data class SendChatMessageRequest(

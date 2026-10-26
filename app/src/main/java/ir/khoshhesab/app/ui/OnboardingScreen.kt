@@ -36,6 +36,15 @@ private data class OnboardingSlide(
 
 private val onboardingSlides = listOf(
     OnboardingSlide(
+        eyebrow = "مالی شخصی، همیشه جلوی چشم",
+        title = "دخل‌وخرجت را\nهوشمندانه مدیریت کن",
+        description = "درآمدها، هزینه‌های شخصی و موجودی حساب‌هایت را یک‌جا ببین و تصویر روشن‌تری از وضعیت مالی خودت داشته باش.",
+        icon = Icons.Default.AccountBalanceWallet,
+        accent = Color(0xFF087F5B),
+        soft = Color(0xFFD8F3E8),
+        tags = listOf(Icons.Default.TrendingUp to "درآمدها", Icons.Default.TrendingDown to "هزینه‌های شخصی")
+    ),
+    OnboardingSlide(
         eyebrow = "همه‌چیز مرتب و یک‌جا",
         title = "دنگ‌ها، بدون\nحساب‌وکتاب سخت",
         description = "برای سفر، کافه یا هر دورهمی یک دنگ بساز؛ اعضا را دعوت کن و همه هزینه‌ها را شفاف ببین.",

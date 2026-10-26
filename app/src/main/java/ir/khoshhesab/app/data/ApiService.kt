@@ -130,7 +130,10 @@ interface ApiService {
     ): Response<Settlement>
 
     @POST("settlements/{id}/approve")
-    suspend fun approveSettlement(@Path("id") id: Long): Response<MessageResponse>
+    suspend fun approveSettlement(
+        @Path("id") id: Long,
+        @Body body: Map<String, Long?> = emptyMap()
+    ): Response<MessageResponse>
 
     @POST("settlements/{id}/reject")
     suspend fun rejectSettlement(
@@ -161,4 +164,46 @@ interface ApiService {
 
     @PATCH("notifications/{id}/read")
     suspend fun readNotification(@Path("id") id: String): Response<MessageResponse>
+
+    @GET("personal-finance/dashboard")
+    suspend fun personalFinanceDashboard(): Response<PersonalFinanceDashboard>
+
+    @GET("personal-finance/categories")
+    suspend fun financeCategories(): Response<FinanceCategories>
+
+    @GET("personal-accounts")
+    suspend fun personalAccounts(@Query("include_archived") includeArchived: Boolean = false): Response<List<PersonalAccount>>
+
+    @POST("personal-accounts")
+    suspend fun createPersonalAccount(@Body body: PersonalAccountRequest): Response<PersonalAccount>
+
+    @PUT("personal-accounts/{id}")
+    suspend fun updatePersonalAccount(@Path("id") id: Long, @Body body: PersonalAccountUpdateRequest): Response<PersonalAccount>
+
+    @DELETE("personal-accounts/{id}")
+    suspend fun deletePersonalAccount(@Path("id") id: Long): Response<MessageResponse>
+
+    @GET("personal-transactions")
+    suspend fun personalTransactions(): Response<List<PersonalTransaction>>
+
+    @POST("personal-transactions")
+    suspend fun createPersonalTransaction(@Body body: PersonalTransactionRequest): Response<PersonalTransaction>
+
+    @PUT("personal-transactions/{id}")
+    suspend fun updatePersonalTransaction(@Path("id") id: Long, @Body body: PersonalTransactionRequest): Response<PersonalTransaction>
+
+    @DELETE("personal-transactions/{id}")
+    suspend fun deletePersonalTransaction(@Path("id") id: Long): Response<MessageResponse>
+
+    @GET("savings-goals")
+    suspend fun savingsGoals(): Response<List<SavingsGoal>>
+
+    @POST("savings-goals")
+    suspend fun createSavingsGoal(@Body body: SavingsGoalRequest): Response<SavingsGoal>
+
+    @PUT("savings-goals/{id}")
+    suspend fun updateSavingsGoal(@Path("id") id: Long, @Body body: SavingsGoalRequest): Response<SavingsGoal>
+
+    @DELETE("savings-goals/{id}")
+    suspend fun deleteSavingsGoal(@Path("id") id: Long): Response<MessageResponse>
 }

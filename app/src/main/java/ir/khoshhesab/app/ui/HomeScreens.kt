@@ -1,6 +1,8 @@
 package ir.khoshhesab.app.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -15,13 +17,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import ir.khoshhesab.app.AppViewModel
+import ir.khoshhesab.app.R
 import ir.khoshhesab.app.data.Group
 import ir.khoshhesab.app.data.CreateGroupRequest
 import java.time.LocalDate
@@ -33,9 +42,24 @@ fun HomeScreen(
     createGroup: () -> Unit,
     notifications: () -> Unit,
     chats: () -> Unit,
+    personalFinance: () -> Unit,
     profile: () -> Unit,
     logout: () -> Unit
 ) {
+    SystemBarAppearance(darkBackground = true)
+    val context = LocalContext.current
+    val appearancePrefs = remember { context.getSharedPreferences("appearance_preferences", android.content.Context.MODE_PRIVATE) }
+    var customHomeBackground by remember { mutableStateOf(appearancePrefs.getString("home_background", null)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                customHomeBackground = appearancePrefs.getString("home_background", null)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var groups by remember { mutableStateOf<List<Group>>(emptyList()) }
     var joinDialog by remember { mutableStateOf(false) }
     var inviteCode by remember { mutableStateOf("") }
@@ -49,59 +73,133 @@ fun HomeScreen(
         vm.request({ vm.api.serverTime() }, silent = true) { officialDate = persianDateWithWeekday(it.date) }
     }
 
-    Scaffold(
-        topBar = {
+    Box(Modifier.fillMaxSize()) {
+        if (customHomeBackground != null) {
+            AsyncImage(
+                model = customHomeBackground,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Image(
+                painter = painterResource(R.drawable.home_background_vault_duck),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0xB30A1930),
+                        Color(0x730A1930),
+                        Color(0x8C061225)
+                    )
+                )
+            )
+        )
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
             Row(
-                Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                Modifier.fillMaxWidth().statusBarsPadding().padding(16.dp),
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("خوش حساب", fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                    Text("گروه‌ها و دنگ‌های من", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("خوش حساب", color = Color.White, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                    Text("گروه‌ها و دنگ‌های من", color = Color.White.copy(alpha = .82f))
                     Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = Color.White.copy(alpha = .88f),
+                        contentColor = Color(0xFF101828),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Row(
                             Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Today, null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Today, null, tint = Color(0xFF123B8F), modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(5.dp))
-                            Text(officialDate, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(officialDate, color = Color(0xFF101828), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-                Row {
+                Row(
+                    modifier = Modifier.padding(top = 0.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
                     IconButton(onClick = notifications) {
                         BadgedBox(badge = {
                             if (unreadNotifications > 0) Badge {
                                 Text(if (unreadNotifications > 99) "+99" else unreadNotifications.toString())
                             }
-                        }) { Icon(Icons.Default.Notifications, "اعلان‌ها") }
+                        }) { Icon(Icons.Default.Notifications, "اعلان‌ها", tint = Color.White) }
                     }
-                    IconButton(onClick = profile) { Icon(Icons.Default.Person, "پروفایل") }
+                    IconButton(onClick = profile) { Icon(Icons.Default.Person, "پروفایل", tint = Color.White) }
                     IconButton(onClick = {
                         vm.request({ vm.api.logout() }) { logout() }
-                    }) { Icon(Icons.Default.Logout, "خروج") }
+                    }) { Icon(Icons.Default.Logout, "خروج", tint = Color.White) }
                 }
             }
-        }
-    ) { padding ->
+            }
+        ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedButton(onClick = { joinDialog = true }, modifier = Modifier.fillMaxWidth()) {
+            ElevatedCard(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = personalFinance),
+                colors = CardDefaults.elevatedCardColors(
+                    containerColor = Color(0xEE073C35),
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 15.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(shape = CircleShape, color = Color(0xFFFFD46A)) {
+                        Icon(
+                            Icons.Default.AccountBalanceWallet, null,
+                            tint = Color(0xFF073C35), modifier = Modifier.padding(11.dp).size(28.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("مدیریت مالی شخصی", fontWeight = FontWeight.Black, fontSize = 18.sp)
+                        Text("حساب‌ها، درآمدها، هزینه‌ها و پس‌انداز", color = Color.White.copy(alpha = .78f), fontSize = 12.sp)
+                    }
+                    Icon(Icons.Default.ChevronLeft, null)
+                }
+            }
+            OutlinedButton(
+                onClick = { joinDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.White.copy(alpha = .92f),
+                    contentColor = Color(0xFF123B8F)
+                )
+            ) {
                 Icon(Icons.Default.GroupAdd, null)
                 Spacer(Modifier.width(8.dp))
                 Text("پیوستن با کد دعوت")
             }
             if (groups.isEmpty() && !vm.loading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("هنوز گروهی ندارید؛ اولین گروه را بسازید.")
+                    Surface(
+                        color = Color(0xC9142238),
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Text(
+                            "هنوز گروهی ندارید؛ اولین گروه را بسازید.",
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
@@ -155,7 +253,12 @@ fun HomeScreen(
                                 }
                                 AssistChip(
                                     onClick = {},
-                                    label = { Text(if (group.is_active) "فعال" else "غیرفعال") }
+                                    label = { Text(if (group.is_active) "فعال" else "غیرفعال", fontWeight = FontWeight.Bold) },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = if (group.is_active) Color(0xFFD7F7EA) else Color(0xFFFFDDE1),
+                                        labelColor = if (group.is_active) Color(0xFF056647) else Color(0xFF9B1C31)
+                                    ),
+                                    border = null
                                 )
                             }
                         }
@@ -186,6 +289,7 @@ fun HomeScreen(
                 containerColor = Color(0xFF1859D9),
                 contentColor = Color.White
             )
+            }
         }
     }
 
